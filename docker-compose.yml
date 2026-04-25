@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: deepagents-demo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: deepagents_demo
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - deepagents_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d deepagents_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  deepagents_postgres_data:
