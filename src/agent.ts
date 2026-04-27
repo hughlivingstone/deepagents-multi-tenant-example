@@ -10,14 +10,7 @@ import {
 
 import { ReadOnlyBackend } from "./readOnlyBackend.js";
 
-const SYSTEM_PROMPT = `You are a concise assistant for a multi-tenant Deep Agents demo.
-
-Global shared memory and skills live under /global/ and are read-only.
-User-specific memory and skills live under /user/ and are writable for the current user only.
-When the user asks you to remember a stable preference, profile fact, or reusable instruction, write it to /user/memories/preferences.md.
-When the user asks what you remember, inspect /global/memories/ and /user/memories/ before answering.
-Do not try to write or edit files under /global/.
-Keep responses brief and mention the memory file only when relevant.`;
+const SYSTEM_PROMPT = `Files under /global/ are read-only shared resources. Files under /user/ are writable and scoped to the current user. Save user-specific notes under /user/memories/.`;
 
 type Agent = ReturnType<typeof createDeepAgent>;
 

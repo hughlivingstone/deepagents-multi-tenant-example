@@ -11,14 +11,14 @@ async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
-  const model = createModel();
+  const { model, provider, modelName } = createModel();
   const { pool, store, checkpointer } = await createPersistence(databaseUrl);
 
   const app = express();
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, model: process.env.LLM_MODEL });
+    res.json({ ok: true, provider, model: modelName });
   });
 
   app.post("/chat", async (req, res, next) => {
