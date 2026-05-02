@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import express from "express";
 
-import { invokeAgent } from "./agent.js";
+import { initAgent, invokeAgent } from "./agent.js";
 import { createPersistence, listStoreRows } from "./db.js";
 import { createModel } from "./model.js";
 
@@ -11,15 +11,12 @@ async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
-  const { model, provider, modelName } = createModel();
+  const { model } = createModel();
   const { pool, store, checkpointer } = await createPersistence(databaseUrl);
+  initAgent(model, store, checkpointer);
 
   const app = express();
   app.use(express.json({ limit: "1mb" }));
-
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true, provider, model: modelName });
-  });
 
   app.post("/chat", async (req, res, next) => {
     try {
@@ -28,43 +25,8 @@ async function main(): Promise<void> {
         return res.status(400).json({ error: "userId and message are required" });
       }
 
-      const reply = await invokeAgent(
-        userId,
-        threadId,
-        message,
-        model,
-        store,
-        checkpointer,
-      );
+      const reply = await invokeAgent(userId, threadId, message);
       res.json({ userId, threadId, reply });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  app.get("/debug/store", async (req, res, next) => {
-    try {
-      const userId = String(req.query.userId ?? "");
-      if (!userId) return res.status(400).json({ error: "userId is required" });
-
-      const namespaces = {
-        globalMemories: ["global", "memories"],
-        userMemories: ["users", userId, "memories"],
-        globalSkills: ["global", "skills"],
-        userSkills: ["users", userId, "skills"],
-      };
-
-      const entries = await Promise.all(
-        Object.entries(namespaces).map(async ([scope, ns]) => [
-          scope,
-          {
-            namespace: ns,
-            rows: await listStoreRows(pool, ns.join(":")),
-          },
-        ]),
-      );
-
-      res.json({ userId, scopes: Object.fromEntries(entries) });
     } catch (err) {
       next(err);
     }

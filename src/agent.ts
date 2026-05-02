@@ -9,49 +9,38 @@ import {
 } from "deepagents";
 
 import { ReadOnlyBackend } from "./readOnlyBackend.js";
+import { UserScopedStoreBackend } from "./userScopedStoreBackend.js";
 
-const SYSTEM_PROMPT = `Files under /global/ are read-only shared resources. Files under /user/ are writable and scoped to the current user. Save user-specific notes under /user/memories/.`;
+const SYSTEM_PROMPT = `Save user-specific notes to /memories/AGENTS.md so they persist across conversations.`;
 
 type Agent = ReturnType<typeof createDeepAgent>;
 
-const agents = new Map<string, Agent>();
+let agent: Agent | null = null;
 
-export function getAgent(
-  userId: string,
+export function initAgent(
   model: BaseChatModel,
   store: PostgresStore,
   checkpointer: PostgresSaver,
 ): Agent {
-  const cached = agents.get(userId);
-  if (cached) return cached;
+  if (agent) return agent;
 
-  const agent = createDeepAgent({
-    name: `tenant-${userId}`,
+  agent = createDeepAgent({
+    name: "multi-tenant",
     model,
     store,
     checkpointer,
     systemPrompt: SYSTEM_PROMPT,
-    memory: ["/global/memories/", "/user/memories/"],
-    skills: ["/global/skills/", "/user/skills/"],
+    memory: ["/memories/AGENTS.md"],
+    skills: ["/skills/"],
     backend: new CompositeBackend(new StateBackend(), {
-      "/global/memories/": new ReadOnlyBackend(
-        new StoreBackend({ namespace: ["global", "memories"] }),
-        "Global memories",
+      "/memories/": new UserScopedStoreBackend(["memories"]),
+      "/skills/": new ReadOnlyBackend(
+        new StoreBackend({ namespace: ["skills"] }),
+        "Skills",
       ),
-      "/user/memories/": new StoreBackend({
-        namespace: ["users", userId, "memories"],
-      }),
-      "/global/skills/": new ReadOnlyBackend(
-        new StoreBackend({ namespace: ["global", "skills"] }),
-        "Global skills",
-      ),
-      "/user/skills/": new StoreBackend({
-        namespace: ["users", userId, "skills"],
-      }),
     }),
   });
 
-  agents.set(userId, agent);
   return agent;
 }
 
@@ -59,17 +48,16 @@ export async function invokeAgent(
   userId: string,
   threadId: string,
   message: string,
-  model: BaseChatModel,
-  store: PostgresStore,
-  checkpointer: PostgresSaver,
 ): Promise<string> {
-  const agent = getAgent(userId, model, store, checkpointer);
+  if (!agent) throw new Error("Agent not initialised. Call initAgent() first.");
 
   const result = await agent.invoke(
     { messages: [{ role: "user", content: message }] },
-    { configurable: { thread_id: `${userId}:${threadId}` } },
+    { configurable: { userId, thread_id: `${userId}:${threadId}` } },
   );
 
+  // Extract the agent's final reply as a string; content can also be a
+  // structured ContentBlock[] (multimodal/tool output), which we don't surface here.
   const last = result.messages.at(-1);
   return typeof last?.content === "string" ? last.content : "";
 }
