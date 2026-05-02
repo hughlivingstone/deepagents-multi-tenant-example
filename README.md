@@ -1,6 +1,6 @@
 # Multi-Tenant Deep Agents Node Demo
 
-Runnable TypeScript demo for a multi-tenant Deep Agents setup. **One agent instance serves every user** — the per-user storage namespace is resolved from `configurable.userId` on every invocation.
+TypeScript demo for a multi-tenant Deep Agents setup using Postgres where each user has its own isolated memory.
 
 ## Requirements
 
